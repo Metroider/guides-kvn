@@ -15,6 +15,10 @@ Run:
 
 The account token is saved to telegraph_token.txt. Keep it: with it you can edit
 the page later (python publish.py --edit <page path>).
+
+    python publish.py --list    # pages of the account and their paths
+    python publish.py --login   # one-time link to edit pages in the browser
+
 """
 import argparse
 import json
@@ -49,11 +53,31 @@ def fill_images(nodes, mapping, missing):
             fill_images(n.get("children", []), mapping, missing)
 
 
+def saved_token(token_file):
+    if not token_file.exists():
+        sys.exit("telegraph_token.txt not found: publish the page first (python publish.py)")
+    return token_file.read_text().strip()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--author", default="")
     ap.add_argument("--edit", help="path of an existing page to overwrite, e.g. Kak-pustit-...-11-21")
+    ap.add_argument("--login", action="store_true",
+                    help="print a one-time link (valid 5 min) that logs this browser into the Telegraph account")
+    ap.add_argument("--list", action="store_true", help="list pages of the Telegraph account")
     args = ap.parse_args()
+    token_file = HERE / "telegraph_token.txt"
+
+    if args.login:
+        acc = call("getAccountInfo", access_token=saved_token(token_file), fields='["auth_url"]')
+        print("Open within 5 minutes (one use):", acc["auth_url"])
+        return
+    if args.list:
+        res = call("getPageList", access_token=saved_token(token_file), limit=200)
+        for p in res["pages"]:
+            print(f'{p["path"]}  |  {p["title"]}  |  views: {p.get("views", 0)}')
+        return
 
     nodes = json.loads((HERE / "content.json").read_text(encoding="utf-8"))
     mapping_file = HERE / "images.json"
@@ -63,7 +87,6 @@ def main():
     if missing:
         sys.exit("No direct links in images.json for: " + ", ".join(sorted(set(missing))))
 
-    token_file = HERE / "telegraph_token.txt"
     if token_file.exists():
         token = token_file.read_text().strip()
     else:
@@ -72,7 +95,10 @@ def main():
         token_file.write_text(token)
         print("New Telegraph account; token saved to", token_file)
 
-    params = dict(access_token=token, title=TITLE, author_name=args.author,
+    author = args.author
+    if args.edit and not author:  # keep the page's current author instead of clearing it
+        author = call(f"getPage/{args.edit}").get("author_name", "")
+    params = dict(access_token=token, title=TITLE, author_name=author,
                   content=json.dumps(nodes, ensure_ascii=False), return_content="false")
     page = call(f"editPage/{args.edit}", **params) if args.edit else call("createPage", **params)
     print("Done:", page["url"])
