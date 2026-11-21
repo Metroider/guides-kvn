@@ -9,3 +9,5 @@
 - `README.md` — гайд для чтения на GitHub;
 - `img/` — скриншоты с разметкой;
 - `telegraph/` — та же статья для публикации в Telegraph и скрипт публикации.
+
+Как опубликовать гайд в Telegraph: [TELEGRAPH.md](TELEGRAPH.md).
